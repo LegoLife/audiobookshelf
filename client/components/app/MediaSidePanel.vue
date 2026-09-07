@@ -15,10 +15,15 @@
           <input v-model="linkInput" type="text" placeholder="Paste a Spotify or YouTube link" autocomplete="off" class="flex-1 min-w-0 bg-bg text-white border border-white border-opacity-10 rounded px-2 py-1.5 text-sm" />
           <button type="submit" class="bg-success text-black rounded px-3 text-sm font-semibold">Load</button>
         </form>
-        <p class="text-xs text-gray-400 mt-1.5 leading-tight">Paste a Spotify playlist/album/track link, or a YouTube video/playlist link. Log in inside the Spotify panel to play full playlists.</p>
+        <p class="text-xs text-gray-400 mt-1.5 leading-tight">Paste a Spotify playlist/album/track link, or a YouTube video/playlist link.</p>
+        <div v-if="activeSource === 'spotify'" class="flex items-center gap-2 mt-2">
+          <button type="button" class="text-xs font-semibold text-black rounded px-2.5 py-1" style="background: #1db954" @click="openSpotifyLogin">Log in to Spotify &#8599;</button>
+          <button type="button" class="text-xs text-gray-400 underline" @click="reloadEmbed">Refresh player</button>
+        </div>
       </div>
       <div class="flex-1 overflow-y-auto p-3">
-        <iframe v-if="embedUrl" :key="embedUrl" :src="embedUrl" loading="lazy" class="w-full border-0 rounded-xl" :style="iframeStyle" :allow="iframeAllow" :allowfullscreen="activeSource === 'youtube'"></iframe>
+        <p v-if="activeSource === 'spotify'" class="text-xs text-gray-400 mb-2 leading-tight">Full playlist playback requires being logged into Spotify. Use "Log in to Spotify" above, sign in in the tab that opens, then come back here and hit "Refresh player".</p>
+        <iframe v-if="embedUrl" :key="embedReloadKey + embedUrl" :src="embedUrl" loading="lazy" class="w-full border-0 rounded-xl" :style="iframeStyle" :allow="iframeAllow" :allowfullscreen="activeSource === 'youtube'"></iframe>
         <p v-else class="text-gray-400 text-sm text-center mt-8">No {{ activeSource === 'youtube' ? 'YouTube' : 'Spotify' }} link loaded yet.</p>
       </div>
     </div>
@@ -35,7 +40,8 @@ export default {
       embedUrl: null,
       isCollapsed: false,
       width: 320,
-      dragging: false
+      dragging: false,
+      embedReloadKey: 0
     }
   },
   computed: {
@@ -146,6 +152,12 @@ export default {
         localStorage.setItem('mediaSidePanel.activeSource', source)
       } catch (e) {}
       this.embedUrl = embedUrl
+    },
+    openSpotifyLogin() {
+      window.open('https://accounts.spotify.com/login?continue=https://open.spotify.com/', '_blank', 'noopener')
+    },
+    reloadEmbed() {
+      this.embedReloadKey++
     },
     toggleCollapsed() {
       this.isCollapsed = !this.isCollapsed
