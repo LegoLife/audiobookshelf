@@ -19,10 +19,11 @@
       </div>
       <div class="flex-1 overflow-y-auto p-3">
         <template v-if="activeSource === 'spotify'">
-          <p class="text-xs text-gray-400 mb-3 leading-tight">Spotify doesn't allow its full player to be embedded, so full playlists open in their own tab instead of playing inline here.</p>
-          <button v-if="spotifyLink" type="button" class="w-full text-sm font-semibold text-black rounded py-2 mb-2" style="background: #1db954" @click="openSpotifyPlaylist">Open playlist in Spotify &#8599;</button>
+          <template v-if="spotifyLink">
+            <button type="button" class="w-full text-sm font-semibold text-black rounded py-2 mb-3" style="background: #1db954" @click="openSpotifyPlaylist">Play in Spotify &#8599;</button>
+            <iframe :key="spotifyEmbedUrl" :src="spotifyEmbedUrl" loading="lazy" class="w-full border-0 rounded-xl" height="352" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe>
+          </template>
           <p v-else class="text-gray-400 text-sm text-center mt-8">No Spotify link loaded yet.</p>
-          <button type="button" class="text-xs text-gray-400 underline" @click="openSpotifyLogin">Log in to Spotify first &#8599;</button>
         </template>
         <template v-else>
           <iframe v-if="embedUrl" :key="embedUrl" :src="embedUrl" loading="lazy" class="w-full border-0 rounded-xl" :style="iframeStyle" :allow="iframeAllow" allowfullscreen></iframe>
@@ -42,6 +43,7 @@ export default {
       linkInput: '',
       embedUrl: null,
       spotifyLink: null,
+      spotifyEmbedUrl: null,
       isCollapsed: false,
       width: 320,
       dragging: false
@@ -75,6 +77,10 @@ export default {
       } catch (e) {
         return null
       }
+    },
+    spotifyEmbedUrlFrom(normalizedUrl) {
+      if (!normalizedUrl) return null
+      return `${normalizedUrl.replace('open.spotify.com/', 'open.spotify.com/embed/')}?utm_source=generator`
     },
     toYouTubeEmbedUrl(raw) {
       try {
@@ -124,6 +130,7 @@ export default {
       this.linkInput = saved || ''
       if (source === 'spotify') {
         this.spotifyLink = saved ? this.normalizeSpotifyUrl(saved) : null
+        this.spotifyEmbedUrl = this.spotifyEmbedUrlFrom(this.spotifyLink)
         this.embedUrl = null
       } else {
         this.embedUrl = saved ? this.toYouTubeEmbedUrl(saved) : null
@@ -158,8 +165,8 @@ export default {
           localStorage.setItem('mediaSidePanel.activeSource', source)
         } catch (e) {}
         this.spotifyLink = normalized
+        this.spotifyEmbedUrl = this.spotifyEmbedUrlFrom(normalized)
         this.embedUrl = null
-        this.openSpotifyPlaylist()
         return
       }
       const embedUrl = this.toYouTubeEmbedUrl(raw)
@@ -175,9 +182,6 @@ export default {
         localStorage.setItem('mediaSidePanel.activeSource', source)
       } catch (e) {}
       this.embedUrl = embedUrl
-    },
-    openSpotifyLogin() {
-      window.open('https://accounts.spotify.com/login?continue=https://open.spotify.com/', 'spotifyPlayerWindow', 'noopener')
     },
     openSpotifyPlaylist() {
       if (!this.spotifyLink) return
