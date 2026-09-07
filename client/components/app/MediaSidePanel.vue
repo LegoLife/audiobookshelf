@@ -16,15 +16,18 @@
           <button type="submit" class="bg-success text-black rounded px-3 text-sm font-semibold">Load</button>
         </form>
         <p class="text-xs text-gray-400 mt-1.5 leading-tight">Paste a Spotify playlist/album/track link, or a YouTube video/playlist link.</p>
-        <div v-if="activeSource === 'spotify'" class="flex items-center gap-2 mt-2">
-          <button type="button" class="text-xs font-semibold text-black rounded px-2.5 py-1" style="background: #1db954" @click="openSpotifyLogin">Log in to Spotify &#8599;</button>
-          <button type="button" class="text-xs text-gray-400 underline" @click="reloadEmbed">Refresh player</button>
-        </div>
       </div>
       <div class="flex-1 overflow-y-auto p-3">
-        <p v-if="activeSource === 'spotify'" class="text-xs text-gray-400 mb-2 leading-tight">Full playlist playback requires being logged into Spotify. Use "Log in to Spotify" above, sign in in the tab that opens, then come back here and hit "Refresh player".</p>
-        <iframe v-if="embedUrl" :key="embedReloadKey + embedUrl" :src="embedUrl" loading="lazy" class="w-full border-0 rounded-xl" :style="iframeStyle" :allow="iframeAllow" :allowfullscreen="activeSource === 'youtube'"></iframe>
-        <p v-else class="text-gray-400 text-sm text-center mt-8">No {{ activeSource === 'youtube' ? 'YouTube' : 'Spotify' }} link loaded yet.</p>
+        <template v-if="activeSource === 'spotify'">
+          <p class="text-xs text-gray-400 mb-3 leading-tight">Spotify doesn't allow its full player to be embedded, so full playlists open in their own tab instead of playing inline here.</p>
+          <button v-if="spotifyLink" type="button" class="w-full text-sm font-semibold text-black rounded py-2 mb-2" style="background: #1db954" @click="openSpotifyPlaylist">Open playlist in Spotify &#8599;</button>
+          <p v-else class="text-gray-400 text-sm text-center mt-8">No Spotify link loaded yet.</p>
+          <button type="button" class="text-xs text-gray-400 underline" @click="openSpotifyLogin">Log in to Spotify first &#8599;</button>
+        </template>
+        <template v-else>
+          <iframe v-if="embedUrl" :key="embedUrl" :src="embedUrl" loading="lazy" class="w-full border-0 rounded-xl" :style="iframeStyle" :allow="iframeAllow" allowfullscreen></iframe>
+          <p v-else class="text-gray-400 text-sm text-center mt-8">No YouTube link loaded yet.</p>
+        </template>
       </div>
     </div>
   </div>
@@ -38,25 +41,25 @@ export default {
       activeSource: 'spotify',
       linkInput: '',
       embedUrl: null,
+      spotifyLink: null,
       isCollapsed: false,
       width: 320,
-      dragging: false,
-      embedReloadKey: 0
+      dragging: false
     }
   },
   computed: {
     iframeStyle() {
-      return this.activeSource === 'youtube' ? { aspectRatio: '16 / 9' } : { height: '600px' }
+      return { aspectRatio: '16 / 9' }
     },
     iframeAllow() {
-      return this.activeSource === 'youtube' ? 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share' : 'autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture'
+      return 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'
     }
   },
   methods: {
     linkKey(source) {
       return `mediaSidePanel.link.${source}`
     },
-    toSpotifyEmbedUrl(raw) {
+    normalizeSpotifyUrl(raw) {
       try {
         const url = new URL(raw.trim())
         const host = url.hostname.replace(/^open\./, '')
@@ -68,7 +71,7 @@ export default {
         const id = parts[1].split('?')[0]
         const allowed = ['playlist', 'album', 'track', 'show', 'episode', 'artist']
         if (allowed.indexOf(type) === -1) return null
-        return `https://open.spotify.com/embed/${type}/${id}?utm_source=generator`
+        return `https://open.spotify.com/${type}/${id}`
       } catch (e) {
         return null
       }
@@ -112,9 +115,6 @@ export default {
         return null
       }
     },
-    toEmbedUrl(source, raw) {
-      return source === 'spotify' ? this.toSpotifyEmbedUrl(raw) : this.toYouTubeEmbedUrl(raw)
-    },
     setActiveSource(source) {
       this.activeSource = source
       try {
@@ -122,7 +122,12 @@ export default {
       } catch (e) {}
       const saved = this.getSavedLink(source)
       this.linkInput = saved || ''
-      this.embedUrl = saved ? this.toEmbedUrl(source, saved) : null
+      if (source === 'spotify') {
+        this.spotifyLink = saved ? this.normalizeSpotifyUrl(saved) : null
+        this.embedUrl = null
+      } else {
+        this.embedUrl = saved ? this.toYouTubeEmbedUrl(saved) : null
+      }
     },
     getSavedLink(source) {
       try {
@@ -139,9 +144,27 @@ export default {
         this.$toast.error('That does not look like a Spotify or YouTube link.')
         return
       }
-      const embedUrl = this.toEmbedUrl(source, raw)
+      if (source === 'spotify') {
+        const normalized = this.normalizeSpotifyUrl(raw)
+        if (!normalized) {
+          this.$toast.error('Could not read a playable link from that Spotify URL.')
+          return
+        }
+        try {
+          localStorage.setItem(this.linkKey(source), raw.trim())
+        } catch (e) {}
+        this.activeSource = source
+        try {
+          localStorage.setItem('mediaSidePanel.activeSource', source)
+        } catch (e) {}
+        this.spotifyLink = normalized
+        this.embedUrl = null
+        this.openSpotifyPlaylist()
+        return
+      }
+      const embedUrl = this.toYouTubeEmbedUrl(raw)
       if (!embedUrl) {
-        this.$toast.error(`Could not read a playable link from that ${source === 'youtube' ? 'YouTube' : 'Spotify'} URL.`)
+        this.$toast.error('Could not read a playable link from that YouTube URL.')
         return
       }
       try {
@@ -154,10 +177,11 @@ export default {
       this.embedUrl = embedUrl
     },
     openSpotifyLogin() {
-      window.open('https://accounts.spotify.com/login?continue=https://open.spotify.com/', '_blank', 'noopener')
+      window.open('https://accounts.spotify.com/login?continue=https://open.spotify.com/', 'spotifyPlayerWindow', 'noopener')
     },
-    reloadEmbed() {
-      this.embedReloadKey++
+    openSpotifyPlaylist() {
+      if (!this.spotifyLink) return
+      window.open(this.spotifyLink, 'spotifyPlayerWindow', 'noopener')
     },
     toggleCollapsed() {
       this.isCollapsed = !this.isCollapsed
