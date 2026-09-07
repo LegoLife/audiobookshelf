@@ -1,10 +1,13 @@
 <template>
-  <div class="text-white max-h-screen h-screen overflow-hidden bg-bg">
+  <div class="text-white max-h-screen h-screen overflow-hidden bg-bg flex flex-col">
     <app-appbar />
 
-    <app-side-rail v-if="isShowingSideRail" class="hidden md:block" />
-    <div id="app-content" class="h-full" :class="{ 'has-siderail': isShowingSideRail }">
-      <Nuxt :key="currentLang" />
+    <div class="flex flex-1 min-h-0">
+      <app-side-rail v-if="isShowingSideRail" class="hidden md:block" />
+      <div id="app-content" class="h-full flex-1 min-w-0" :class="{ 'has-siderail': isShowingSideRail }">
+        <Nuxt :key="currentLang" />
+      </div>
+      <app-media-side-panel class="hidden md:flex" />
     </div>
 
     <app-media-player-container ref="mediaPlayerContainer" />
