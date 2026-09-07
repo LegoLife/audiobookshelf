@@ -6,29 +6,15 @@
     <div id="media-side-panel-divider" @mousedown="startDrag"></div>
     <div id="media-side-panel-inner" v-show="!isCollapsed">
       <div class="p-3 border-b border-white border-opacity-10">
-        <div class="flex gap-1.5 mb-2">
-          <button v-for="src in sources" :key="src" type="button" class="flex-1 text-xs font-semibold uppercase tracking-wide rounded py-1.5 border" :class="activeSource === src ? 'text-black border-transparent' : 'text-gray-400 border-white border-opacity-10 bg-primary'" :style="activeSource === src ? { background: src === 'spotify' ? '#1db954' : '#ff0000' } : {}" @click="setActiveSource(src)">
-            {{ src }}
-          </button>
-        </div>
         <form class="flex gap-1.5" @submit.prevent="loadFromInput">
-          <input v-model="linkInput" type="text" placeholder="Paste a Spotify or YouTube link" autocomplete="off" class="flex-1 min-w-0 bg-bg text-white border border-white border-opacity-10 rounded px-2 py-1.5 text-sm" />
+          <input v-model="linkInput" type="text" placeholder="Paste a YouTube link" autocomplete="off" class="flex-1 min-w-0 bg-bg text-white border border-white border-opacity-10 rounded px-2 py-1.5 text-sm" />
           <button type="submit" class="bg-success text-black rounded px-3 text-sm font-semibold">Load</button>
         </form>
-        <p class="text-xs text-gray-400 mt-1.5 leading-tight">Paste a Spotify playlist/album/track link, or a YouTube video/playlist link.</p>
+        <p class="text-xs text-gray-400 mt-1.5 leading-tight">Paste a YouTube video or playlist link.</p>
       </div>
       <div class="flex-1 overflow-y-auto p-3">
-        <template v-if="activeSource === 'spotify'">
-          <template v-if="spotifyLink">
-            <button type="button" class="w-full text-sm font-semibold text-black rounded py-2 mb-3" style="background: #1db954" @click="openSpotifyPlaylist">Play in Spotify &#8599;</button>
-            <iframe :key="spotifyEmbedUrl" :src="spotifyEmbedUrl" loading="lazy" class="w-full border-0 rounded-xl" height="352" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe>
-          </template>
-          <p v-else class="text-gray-400 text-sm text-center mt-8">No Spotify link loaded yet.</p>
-        </template>
-        <template v-else>
-          <iframe v-if="embedUrl" :key="embedUrl" :src="embedUrl" loading="lazy" class="w-full border-0 rounded-xl" :style="iframeStyle" :allow="iframeAllow" allowfullscreen></iframe>
-          <p v-else class="text-gray-400 text-sm text-center mt-8">No YouTube link loaded yet.</p>
-        </template>
+        <iframe v-if="embedUrl" :key="embedUrl" :src="embedUrl" loading="lazy" class="w-full border-0 rounded-xl" :style="iframeStyle" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+        <p v-else class="text-gray-400 text-sm text-center mt-8">No YouTube link loaded yet.</p>
       </div>
     </div>
   </div>
@@ -38,12 +24,8 @@
 export default {
   data() {
     return {
-      sources: ['spotify', 'youtube'],
-      activeSource: 'spotify',
       linkInput: '',
       embedUrl: null,
-      spotifyLink: null,
-      spotifyEmbedUrl: null,
       isCollapsed: false,
       width: 320,
       dragging: false
@@ -52,35 +34,11 @@ export default {
   computed: {
     iframeStyle() {
       return { aspectRatio: '16 / 9' }
-    },
-    iframeAllow() {
-      return 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'
     }
   },
   methods: {
-    linkKey(source) {
-      return `mediaSidePanel.link.${source}`
-    },
-    normalizeSpotifyUrl(raw) {
-      try {
-        const url = new URL(raw.trim())
-        const host = url.hostname.replace(/^open\./, '')
-        if (host !== 'spotify.com') return null
-        const parts = url.pathname.split('/').filter(Boolean)
-        if (parts[0] && parts[0].indexOf('intl-') === 0) parts.shift()
-        if (parts.length < 2) return null
-        const type = parts[0]
-        const id = parts[1].split('?')[0]
-        const allowed = ['playlist', 'album', 'track', 'show', 'episode', 'artist']
-        if (allowed.indexOf(type) === -1) return null
-        return `https://open.spotify.com/${type}/${id}`
-      } catch (e) {
-        return null
-      }
-    },
-    spotifyEmbedUrlFrom(normalizedUrl) {
-      if (!normalizedUrl) return null
-      return `${normalizedUrl.replace('open.spotify.com/', 'open.spotify.com/embed/')}?utm_source=generator`
+    linkKey() {
+      return 'mediaSidePanel.link.youtube'
     },
     toYouTubeEmbedUrl(raw) {
       try {
@@ -110,35 +68,9 @@ export default {
         return null
       }
     },
-    detectSource(raw) {
+    getSavedLink() {
       try {
-        const url = new URL(raw.trim())
-        const host = url.hostname.replace(/^open\./, '').replace(/^www\./, '').replace(/^music\./, '')
-        if (host === 'spotify.com') return 'spotify'
-        if (host === 'youtube.com' || host === 'youtu.be') return 'youtube'
-        return null
-      } catch (e) {
-        return null
-      }
-    },
-    setActiveSource(source) {
-      this.activeSource = source
-      try {
-        localStorage.setItem('mediaSidePanel.activeSource', source)
-      } catch (e) {}
-      const saved = this.getSavedLink(source)
-      this.linkInput = saved || ''
-      if (source === 'spotify') {
-        this.spotifyLink = saved ? this.normalizeSpotifyUrl(saved) : null
-        this.spotifyEmbedUrl = this.spotifyEmbedUrlFrom(this.spotifyLink)
-        this.embedUrl = null
-      } else {
-        this.embedUrl = saved ? this.toYouTubeEmbedUrl(saved) : null
-      }
-    },
-    getSavedLink(source) {
-      try {
-        return localStorage.getItem(this.linkKey(source))
+        return localStorage.getItem(this.linkKey())
       } catch (e) {
         return null
       }
@@ -146,46 +78,15 @@ export default {
     loadFromInput() {
       const raw = this.linkInput
       if (!raw || !raw.trim()) return
-      const source = this.detectSource(raw)
-      if (!source) {
-        this.$toast.error('That does not look like a Spotify or YouTube link.')
-        return
-      }
-      if (source === 'spotify') {
-        const normalized = this.normalizeSpotifyUrl(raw)
-        if (!normalized) {
-          this.$toast.error('Could not read a playable link from that Spotify URL.')
-          return
-        }
-        try {
-          localStorage.setItem(this.linkKey(source), raw.trim())
-        } catch (e) {}
-        this.activeSource = source
-        try {
-          localStorage.setItem('mediaSidePanel.activeSource', source)
-        } catch (e) {}
-        this.spotifyLink = normalized
-        this.spotifyEmbedUrl = this.spotifyEmbedUrlFrom(normalized)
-        this.embedUrl = null
-        return
-      }
       const embedUrl = this.toYouTubeEmbedUrl(raw)
       if (!embedUrl) {
         this.$toast.error('Could not read a playable link from that YouTube URL.')
         return
       }
       try {
-        localStorage.setItem(this.linkKey(source), raw.trim())
-      } catch (e) {}
-      this.activeSource = source
-      try {
-        localStorage.setItem('mediaSidePanel.activeSource', source)
+        localStorage.setItem(this.linkKey(), raw.trim())
       } catch (e) {}
       this.embedUrl = embedUrl
-    },
-    openSpotifyPlaylist() {
-      if (!this.spotifyLink) return
-      window.open(this.spotifyLink, 'spotifyPlayerWindow', 'noopener')
     },
     toggleCollapsed() {
       this.isCollapsed = !this.isCollapsed
@@ -225,14 +126,9 @@ export default {
       if (savedWidth) this.width = parseInt(savedWidth, 10)
       this.isCollapsed = localStorage.getItem('mediaSidePanel.collapsed') === '1'
     } catch (e) {}
-    const initialSource = (() => {
-      try {
-        return localStorage.getItem('mediaSidePanel.activeSource') || 'spotify'
-      } catch (e) {
-        return 'spotify'
-      }
-    })()
-    this.setActiveSource(initialSource)
+    const saved = this.getSavedLink()
+    this.linkInput = saved || ''
+    this.embedUrl = saved ? this.toYouTubeEmbedUrl(saved) : null
   },
   beforeDestroy() {
     window.removeEventListener('mousemove', this.onDrag)
